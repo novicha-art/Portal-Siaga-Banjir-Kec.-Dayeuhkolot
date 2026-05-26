@@ -474,7 +474,7 @@
         const satMapPosko   = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri', maxZoom: 19 });
         const topoMapPosko  = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: 'OpenTopoMap', maxZoom: 17 });
 
-        const mapPosko = L.map('mapPosko', { ...mapOptions, center: [-6.9856, 107.6331], zoom: 14, layers: [lightMapPosko] });
+        const mapPosko = L.map('mapPosko', { ...mapOptions, center: [-6.969312671587232, 107.61175054864876], zoom: 14, layers: [lightMapPosko] });
 
         // Layer groups mapPosko — posko ON, kecamatan OFF
         const layerPoskoKecGroup  = L.layerGroup().addTo(mapPosko);  // ON by default
@@ -493,7 +493,7 @@
         const satMapWarga   = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri', maxZoom: 19 });
         const topoMapWarga  = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: 'OpenTopoMap', maxZoom: 17 });
 
-        const mapWarga = L.map('mapWarga', { ...mapOptions, center: [-6.9856, 107.6331], zoom: 14, layers: [lightMapWarga] });
+        const mapWarga = L.map('mapWarga', { ...mapOptions, center: [-6.969312671587232, 107.61175054864876], zoom: 14, layers: [lightMapWarga] });
 
         // Layer groups mapWarga — titik kumpul ON, kecamatan OFF
         const layerWargaKecGroup  = L.layerGroup().addTo(mapWarga);  // ON by default
@@ -512,7 +512,7 @@
         const satMapJalur   = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri', maxZoom: 19 });
         const topoMapJalur  = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: 'OpenTopoMap', maxZoom: 17 });
 
-        const mapJalur = L.map('mapJalur', { ...mapOptions, center: [-6.9856, 107.6331], zoom: 14, layers: [lightMapJalur] });
+        const mapJalur = L.map('mapJalur', { ...mapOptions, center: [-6.969312671587232, 107.61175054864876], zoom: 14, layers: [lightMapJalur] });
 
         // Layer groups mapJalur — jalur ON, kecamatan OFF
         const layerJalurKecGroup  = L.layerGroup().addTo(mapJalur);  // ON by default
