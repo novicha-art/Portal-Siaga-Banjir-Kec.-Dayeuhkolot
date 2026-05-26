@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evakuasi Banjir Dayeuhkolot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #111827; color: #f3f4f6; font-family: 'Poppins', sans-serif; overflow: hidden; }
+        
+        .rounded-modern { border-radius: 8px; }
+        .shadow-modern { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); }
+
+        .leaflet-popup-content-wrapper { background: #1f2937; color: #ffffff; border-radius: 8px; border: 1px solid #4b5563; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .leaflet-popup-tip { background: #1f2937; }
+        .leaflet-routing-container { display: none !important; }
+        .leaflet-control-layers { background: #1f2937 !important; border: 1px solid #4b5563 !important; border-radius: 8px !important; color: white; font-family: monospace; font-size: 11px; }
+        
+        @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+        .animate-marquee { display: inline-block; white-space: nowrap; animation: marquee 25s linear infinite; }
+
+        .custom-marker-container { display: flex; flex-direction: column; align-items: center; justify-content: center; transform: translateY(-50%); }
+        .marker-label { 
+            background-color: #1f2937; border: 1px solid #9ca3af; padding: 3px 6px; 
+            font-family: monospace; white-space: nowrap; font-weight: bold; margin-top: 4px; text-transform: uppercase;
+            border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            font-size: var(--lbl-size, 10px); opacity: var(--lbl-opacity, 1); transition: all 0.2s ease-in-out;
+        }
+        .marker-label.user { border-color: #3b82f6; color: #60a5fa; }
+        .marker-label.posko { border-color: #eab308; color: #facc15; }
+        
+        input[type="checkbox"] { accent-color: #ef4444; border-radius: 4px; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col relative pt-7">
+
+    <div class="fixed top-0 left-0 w-full bg-red-700 text-white font-mono text-[10px] md:text-xs py-1.5 border-b border-gray-500 flex justify-between items-center px-4 z-[4000] shadow-md h-7">
+        <div class="flex-1 overflow-hidden relative h-4 mr-4">
+            <div class="animate-marquee absolute w-full font-bold tracking-wider">
+                ⚠️ PERINGATAN DINI: WASPADA BANJIR KECAMATAN DAYEUHKOLOT - IKUTI JALUR EVAKUASI - HARAP TETAP TENANG ⚠️
+            </div>
+        </div>
+        <div id="realtimeClock" class="font-bold min-w-max bg-black/40 px-2 py-0.5 rounded shadow-inner">--:--:-- WIB</div>
+    </div>
+
+    <button id="btnToggleMenu" class="md:hidden fixed top-10 left-4 z-[3500] bg-[#1f2937] border border-gray-500 text-white p-2 rounded-modern shadow-modern hover:bg-gray-700 transition-colors">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+    </button>
+
+    <div id="floatingNav" class="hidden fixed top-24 md:top-12 left-1/2 transform -translate-x-1/2 z-[3000] bg-[#1f2937]/95 backdrop-blur-sm border border-blue-500/50 text-white px-4 py-3 md:px-6 md:py-3 w-[85%] md:w-auto md:min-w-[320px] flex items-center space-x-4 cursor-pointer hover:bg-gray-800 transition-all rounded-modern shadow-modern">
+        <div id="navIcon" class="text-3xl font-bold text-blue-400">⤴️</div>
+        <div class="flex flex-col flex-1">
+            <span id="navDistance" class="font-bold text-lg md:text-xl text-yellow-400">-- m</span>
+            <span id="navInstruction" class="text-xs font-mono uppercase text-gray-200">Menghitung Rute...</span>
+            <span class="text-[9px] text-gray-400 mt-1 italic">Ketuk panel untuk info arah ➡</span>
+        </div>
+    </div>
+
+    <div class="flex flex-1 relative overflow-hidden h-full w-full">
+        
+        <div id="sidebar" class="absolute md:relative z-[3200] h-full w-[80%] md:w-80 bg-[#1f2937] border-r border-gray-600 transform -translate-x-full transition-transform duration-300 md:translate-x-0 flex flex-col shadow-modern md:shadow-none">
+            
+            <div class="p-5 border-b border-gray-600 flex justify-between items-center bg-gray-900/50">
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 bg-red-600 animate-ping rounded-full inline-block"></span>
+                    <h1 class="text-lg font-bold tracking-wider text-red-500 uppercase">Si-Jalur</h1>
+                </div>
+                <button id="btnCloseMenu" class="md:hidden text-gray-400 hover:text-white text-2xl font-bold focus:outline-none">&times;</button>
+            </div>
+
+            <div class="p-5 flex-1 overflow-y-auto space-y-5">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-wider mb-2 text-gray-400">Mode Ancaman</label>
+                    <select id="statusBanjir" class="w-full bg-[#111827] border border-gray-600 p-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-red-500 font-mono rounded-modern shadow-sm">
+                        <option value="banjir3" selected>SIAGA 1 (BANJIR ZONA MERAH)</option>
+                        <option value="banjir2">EVAKUASI TOTAL (MERAH & KUNING)</option>
+                        <option value="normal">KONDISI AMAN (NORMAL)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-wider mb-2 text-gray-400">GPS Simulasi</label>
+                    <button id="btnGPS" class="w-full bg-[#111827] hover:bg-gray-800 border border-gray-600 text-xs py-2.5 px-3 transition font-mono rounded-modern shadow-sm flex items-center justify-center">
+                        📍 Set Lokasi (Fix Coord)
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-4 bg-gray-900/80 border-t border-gray-600 flex flex-col gap-3">
+                <div>
+                    <span class="text-[10px] text-gray-400 font-mono block mb-1.5 uppercase tracking-wide">Status Data</span>
+                    <div id="logMessage" class="text-gray-300 font-mono text-[10px] leading-relaxed animate-pulse">Memuat data Spasial...</div>
+                </div>
+                <a href="index.html" class="w-full bg-blue-600 hover:bg-blue-700 border border-blue-500 text-white font-bold font-mono text-xs py-3 rounded-modern flex justify-center items-center gap-2 transition-colors shadow-md mt-2">
+                    <span class="text-sm">🏠</span> <span>Kembali ke Beranda</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="flex-1 relative h-full w-full bg-[#111827]">
+            <div id="map" class="h-full w-full z-[1]"></div>
+            
+            <div id="evakuasiContainer" class="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-[85%] md:w-[350px] z-[2500] hidden flex-col items-center">
+                <div id="menuPosko" class="hidden w-full bg-[#1f2937]/95 backdrop-blur-md border border-gray-600 rounded-modern p-3 mb-3 shadow-modern flex-col space-y-2 transition-all">
+                    <div class="text-[10px] text-gray-400 font-bold border-b border-gray-600 pb-1.5 mb-1 uppercase flex justify-between">
+                        <span>Pilih Tujuan Posko</span>
+                        <button id="btnCloseMenuPosko" class="text-gray-400 hover:text-white">&times;</button>
+                    </div>
+                    
+                    <button onclick="prosesEvakuasiTerdekat()" class="text-left text-[11px] font-mono bg-blue-600 hover:bg-blue-700 text-white px-3 py-2.5 rounded-md transition-colors flex items-center justify-between border border-blue-500">
+                        <span>📍 Posko Terdekat (Otomatis)</span>
+                        <span class="text-[9px] bg-blue-800 px-1.5 py-0.5 rounded">Rekomendasi</span>
+                    </button>
+                    
+                    <div id="listPoskoOptions" class="flex flex-col space-y-2 max-h-40 overflow-y-auto mt-2 pr-1 custom-scrollbar"></div>
+                </div>
+                
+                <button id="btnEvakuasiUtama" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold font-mono text-xs px-6 py-3.5 border border-red-500 uppercase transition-all rounded-full shadow-modern flex items-center justify-center space-x-2">
+                    <span id="iconBtnEvakuasi">🚨</span>
+                    <span id="textBtnEvakuasi">Pilih Rute Posko</span>
+                </button>
+            </div>
+
+            <div class="absolute bottom-24 md:bottom-20 right-4 z-[2500] font-mono text-[10px] md:text-xs w-[190px] md:w-[220px] transition-all">
+                <button id="btnToggleLegenda" class="w-full font-bold p-2.5 text-white uppercase flex justify-between items-center bg-[#1f2937]/90 backdrop-blur hover:bg-gray-700 transition-colors border border-gray-600 rounded-t-modern shadow-lg">
+                    <span>Legenda & Layer</span>
+                    <span id="iconLegenda">[-]</span>
+                </button>
+                
+                <div id="isiLegenda" class="bg-[#1f2937]/90 backdrop-blur border-l border-r border-b border-gray-600 p-3 space-y-3 rounded-b-modern shadow-modern">
+                    <div class="flex items-center"><span class="w-3 h-3 bg-[#ef4444] opacity-50 inline-block mr-3 border border-red-500 rounded-sm"></span> Zona Banjir 3</div>
+                    <div class="flex items-center"><span class="w-3 h-3 bg-[#eab308] opacity-50 inline-block mr-3 border border-yellow-500 rounded-sm"></span> Zona Banjir 2</div>
+                    <div class="flex items-center"><span class="w-3 h-3 bg-[#a855f7] opacity-50 inline-block mr-3 border border-purple-500 rounded-sm"></span> Zona Aman</div>
+                    <hr class="border-gray-600 my-1">
+                    <label class="flex items-center cursor-pointer text-gray-300 hover:text-white">
+                        <input type="checkbox" id="toggleJalan" checked class="mr-3 h-3.5 w-3.5"> Jaringan Jalan
+                    </label>
+                    <label class="flex items-center cursor-pointer text-gray-300 hover:text-white">
+                        <input type="checkbox" id="toggleSungai" class="mr-3 h-3.5 w-3.5"> Sungai (Off)
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+    
+    <script>
+        function updateClock() {
+            const now = new Date();
+            const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+            document.getElementById('realtimeClock').innerText = `${days[now.getDay()]}, ${now.toLocaleTimeString('id-ID', { hour12: false })} WIB`;
+        }
+        setInterval(updateClock, 1000); updateClock();
+
+        const sidebar = document.getElementById('sidebar');
+        document.getElementById('btnToggleMenu').addEventListener('click', () => sidebar.classList.toggle('-translate-x-full'));
+        document.getElementById('btnCloseMenu').addEventListener('click', () => sidebar.classList.add('-translate-x-full'));
+
+        const isiLegenda = document.getElementById('isiLegenda');
+        const iconLegenda = document.getElementById('iconLegenda');
+        if(window.innerWidth < 768) { isiLegenda.classList.add('hidden'); iconLegenda.innerText = "[+]"; }
+        document.getElementById('btnToggleLegenda').addEventListener('click', () => {
+            isiLegenda.classList.toggle('hidden');
+            iconLegenda.innerText = isiLegenda.classList.contains('hidden') ? "[+]" : "[-]";
+        });
+
+        const map = L.map('map', { zoomControl: false }).setView([-6.9856, 107.6331], 15);
+        L.control.zoom({ position: 'topright' }).addTo(map);
+
+        function updateMarkerScale() {
+            const zoom = map.getZoom();
+            const root = document.documentElement;
+            if (zoom >= 16) {
+                root.style.setProperty('--lbl-size', '10px'); root.style.setProperty('--lbl-opacity', '1');
+            } else if (zoom >= 14) {
+                root.style.setProperty('--lbl-size', '7px'); root.style.setProperty('--lbl-opacity', '0.8');
+            } else {
+                root.style.setProperty('--lbl-size', '0px'); root.style.setProperty('--lbl-opacity', '0'); 
+            }
+        }
+        map.on('zoomend', updateMarkerScale); updateMarkerScale();
+
+        const basemapDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+        const basemapSatelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+        const basemapKontur = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png');
+        L.control.layers({"Mode Gelap": basemapDark, "Satelit": basemapSatelit, "Topografi": basemapKontur}).addTo(map);
+
+        let routingControl = null;
+        let routeInstructions = [];
+        let currentInstructionIndex = 0;
+        let isNavigating = false; 
+        let markerUser = null;
+        const fixCoord = [-6.984038065237428, 107.61992757440507];
+        
+        let dataPosko = []; 
+        let layerBanjir1, layerBanjir2, layerBanjir3, layerPosko1, layerPosko2, layerPendudukZ1, layerPendudukZ2, layerJalan, layerSungai;
+
+        const svgWarga = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path></svg>`;
+        const svgPosko = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>`;
+        const svgUser = `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="3"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3" fill="#3b82f6"></circle></svg>`;
+
+        function buatMarkerSVG(svgContent, textLabel, cssClass) {
+            return L.divIcon({
+                className: '',
+                html: `<div class="custom-marker-container">${svgContent}<div class="marker-label ${cssClass}">${textLabel}</div></div>`,
+                iconSize: [40, 50], iconAnchor: [20, 25], popupAnchor: [0, -25]
+            });
+        }
+
+        function logMsg(txt) { 
+            const el = document.getElementById('logMessage');
+            el.innerHTML = txt;
+            el.classList.remove('animate-pulse');
+        }
+
+        Promise.all([
+            fetch('kec.dayeuhkolot.geojson').then(r=>r.json()),
+            fetch('JALAN.geojson').then(r=>r.json()),
+            fetch('SUNGAIfix.geojson').then(r=>r.json()),
+            fetch('BANJIR3.geojson').then(r=>r.json()),
+            fetch('BANJIR2.geojson').then(r=>r.json()),
+            fetch('BANJIR1.geojson').then(r=>r.json()),
+            fetch('POSKO 1.geojson').then(r=>r.json()),
+            fetch('POSKO 2.geojson').then(r=>r.json()),
+            fetch('PendudukZone1.geojson').then(r=>r.json()),
+            fetch('PendudukZone2.geojson').then(r=>r.json())
+        ]).then(([dKec, dJalan, dSungai, dB3, dB2, dB1, dP1, dP2, dW1, dW2]) => {
+            
+            L.geoJSON(dKec, {style: { color: '#ef4444', weight: 2, fillOpacity: 0 }}).addTo(map);
+            layerJalan = L.geoJSON(dJalan, { style: { color: '#9ca3af', weight: 1.5, opacity: 0.5 } }).addTo(map);
+            layerSungai = L.geoJSON(dSungai, { style: { color: '#3b82f6', weight: 2 } });
+            
+            layerBanjir3 = L.geoJSON(dB3, { style: { color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.4 } });
+            layerBanjir2 = L.geoJSON(dB2, { style: { color: '#eab308', fillColor: '#eab308', fillOpacity: 0.3 } });
+            layerBanjir1 = L.geoJSON(dB1, { style: { color: '#a855f7', fillColor: '#a855f7', fillOpacity: 0.2 } });
+
+            function buatPopupPosko(posko) {
+                const statusWarna = posko.status === "Penuh" ? "text-red-500" : "text-green-400";
+                return `
+                    <div class="text-[11px] uppercase font-bold text-white border-b border-gray-600 pb-1 mb-1">${posko.nama}</div>
+                    <div class="text-[9px] text-gray-300 font-mono mb-2">
+                        Jenis: ${posko.jenis}<br>
+                        Kapasitas: ${posko.terisi}/${posko.kapasitas} <span class="${statusWarna} font-bold">(${posko.status})</span>
+                    </div>
+                    <button onclick="prosesEvakuasiKeTarget(${posko.latlng.lat}, ${posko.latlng.lng}, '${posko.nama}', '${posko.status}')" class="bg-blue-600 hover:bg-blue-700 text-white font-mono text-[10px] w-full py-1.5 border border-transparent rounded-md uppercase transition-colors">
+                        Mulai Ke Sini
+                    </button>
+                `;
+            }
+
+            layerPosko1 = L.geoJSON(dP1, {
+                pointToLayer: (f, latlng) => {
+                    let p = { latlng: latlng, nama: f.properties.NAMA, jenis: 'Posko Utama', kapasitas: 1000, terisi: 650, status: 'Aktif', z: 1 };
+                    dataPosko.push(p);
+                    return L.marker(latlng, { icon: buatMarkerSVG(svgPosko, f.properties.NAMA, 'posko') }).bindPopup(buatPopupPosko(p));
+                }
+            });
+
+            layerPosko2 = L.geoJSON(dP2, {
+                pointToLayer: (f, latlng) => {
+                    let p = { latlng: latlng, nama: f.properties.NAMA, jenis: 'Posko PMI', kapasitas: 800, terisi: 450, status: 'Aktif', z: 2 };
+                    dataPosko.push(p);
+                    return L.marker(latlng, { icon: buatMarkerSVG(svgPosko, f.properties.NAMA, 'posko') }).bindPopup(buatPopupPosko(p));
+                }
+            });
+
+            layerPendudukZ1 = L.geoJSON(dW1, { 
+                pointToLayer: (f, latlng) => L.marker(latlng, { icon: buatMarkerSVG(svgWarga, f.properties.NAMA, '') })
+                .bindPopup(`<div class="text-[10px] font-mono mb-1"><b>TITIK KUMPUL ${f.properties.NAMA}</b></div><button onclick="setLokasiUser(L.latLng(${latlng.lat}, ${latlng.lng}))" class="bg-gray-700 text-white font-mono text-[9px] px-2 py-1 rounded">Set Lokasi Di Sini</button>`) 
+            });
+
+            layerPendudukZ2 = L.geoJSON(dW2, { 
+                pointToLayer: (f, latlng) => L.marker(latlng, { icon: buatMarkerSVG(svgWarga, f.properties.NAMA, '') })
+                .bindPopup(`<div class="text-[10px] font-mono mb-1"><b>TITIK KUMPUL ${f.properties.NAMA}</b></div><button onclick="setLokasiUser(L.latLng(${latlng.lat}, ${latlng.lng}))" class="bg-gray-700 text-white font-mono text-[9px] px-2 py-1 rounded">Set Lokasi Di Sini</button>`) 
+            });
+
+            logMsg("Seluruh data spasial berhasil dimuat.");
+            perbaruiPeta();
+        }).catch(err => logMsg("Error memuat peta: Pastikan Anda menjalankan server (Live Server)."));
+
+
+        function perbaruiPeta() {
+            const mode = document.getElementById('statusBanjir').value;
+            const wadahEvakuasi = document.getElementById('evakuasiContainer');
+            
+            [layerBanjir1, layerBanjir2, layerBanjir3, layerPosko1, layerPosko2, layerPendudukZ1, layerPendudukZ2].forEach(lyr => { 
+                if(lyr && map.hasLayer(lyr)) map.removeLayer(lyr); 
+            });
+
+            if (mode === "banjir3") {
+                if(layerBanjir3) layerBanjir3.addTo(map);
+                if(layerPosko1) layerPosko1.addTo(map);
+                if(layerPendudukZ1) layerPendudukZ1.addTo(map);
+                wadahEvakuasi.classList.remove('hidden');
+                wadahEvakuasi.classList.add('flex');
+                logMsg("Siaga 1 Aktif. Evakuasi difokuskan ke Posko Utama.");
+            } else if (mode === "banjir2") {
+                if(layerBanjir3) layerBanjir3.addTo(map); if(layerBanjir2) layerBanjir2.addTo(map);
+                if(layerPosko1) layerPosko1.addTo(map); if(layerPosko2) layerPosko2.addTo(map);
+                if(layerPendudukZ1) layerPendudukZ1.addTo(map); if(layerPendudukZ2) layerPendudukZ2.addTo(map);
+                wadahEvakuasi.classList.remove('hidden');
+                wadahEvakuasi.classList.add('flex');
+                logMsg("Evakuasi Total! Posko PMI (Zona Biru) juga diaktifkan.");
+            } else {
+                batalkanNavigasi();
+                wadahEvakuasi.classList.remove('flex');
+                wadahEvakuasi.classList.add('hidden');
+                logMsg("Wilayah terpantau aman.");
+            }
+            renderMenuPosko(mode);
+        }
+
+        const btnEvakuasiUtama = document.getElementById('btnEvakuasiUtama');
+        const menuPosko = document.getElementById('menuPosko');
+        
+        btnEvakuasiUtama.addEventListener('click', () => {
+            if(isNavigating) {
+                batalkanNavigasi();
+            } else {
+                menuPosko.classList.toggle('hidden');
+                menuPosko.classList.toggle('flex');
+            }
+        });
+
+        document.getElementById('btnCloseMenuPosko').addEventListener('click', () => {
+            menuPosko.classList.add('hidden'); menuPosko.classList.remove('flex');
+        });
+
+        function renderMenuPosko(mode) {
+            const listContainer = document.getElementById('listPoskoOptions');
+            listContainer.innerHTML = '';
+            
+            let poskoAktif = dataPosko.filter(p => mode === "banjir2" ? true : p.z === 1);
+            
+            poskoAktif.forEach(p => {
+                const isPenuh = p.status === "Penuh";
+                const bgWarna = isPenuh ? "bg-red-900/30 border-red-800 opacity-60" : "bg-gray-800 hover:bg-gray-700 border-gray-600";
+                const txtWarna = isPenuh ? "text-red-400" : "text-green-400";
+                
+                const btn = document.createElement('button');
+                btn.className = `text-left text-[10px] font-mono text-white px-3 py-2 rounded-md transition-colors border flex flex-col w-full ${bgWarna}`;
+                btn.innerHTML = `
+                    <div class="flex justify-between w-full font-bold">
+                        <span>🏕️ ${p.nama} (${p.jenis})</span>
+                        <span class="${txtWarna}">${p.status}</span>
+                    </div>
+                    <div class="text-[9px] text-gray-400 mt-1">Kapasitas: ${p.terisi}/${p.kapasitas} Orang</div>
+                `;
+                btn.onclick = () => {
+                    if(isPenuh) { alert(`Maaf, ${p.nama} saat ini sudah penuh.`); return; }
+                    prosesEvakuasiKeTarget(p.latlng.lat, p.latlng.lng, p.nama, p.status);
+                };
+                listContainer.appendChild(btn);
+            });
+        }
+
+        function setLokasiUser(latlng) {
+            if (markerUser) { markerUser.setLatLng(latlng); } 
+            else { markerUser = L.marker(latlng, { icon: buatMarkerSVG(svgUser, 'POSISI ANDA', 'user'), draggable: true }).addTo(map); }
+            map.flyTo(latlng, 16, { animate: true, duration: 1 });
+            map.closePopup();
+        }
+
+        function batalkanNavigasi() {
+            if(routingControl) { map.removeControl(routingControl); routingControl = null; }
+            document.getElementById('floatingNav').classList.add('hidden');
+            
+            isNavigating = false;
+            btnEvakuasiUtama.className = "w-full bg-red-600 hover:bg-red-700 text-white font-bold font-mono text-xs px-6 py-3.5 border border-red-500 uppercase transition-all rounded-full shadow-modern flex items-center justify-center space-x-2";
+            document.getElementById('iconBtnEvakuasi').innerText = "🚨";
+            document.getElementById('textBtnEvakuasi').innerText = "Pilih Rute Posko";
+            logMsg("Navigasi berhasil dibatalkan.");
+        }
+
+        window.prosesEvakuasiKeTarget = function(latTarget, lngTarget, namaPosko, status) {
+            if(status === "Penuh") { alert("Posko ini penuh."); return; }
+            if(!markerUser) setLokasiUser(L.latLng(fixCoord[0], fixCoord[1]));
+            
+            menuPosko.classList.add('hidden'); menuPosko.classList.remove('flex');
+            
+            const asal = markerUser.getLatLng();
+            if(routingControl) { map.removeControl(routingControl); }
+            
+            routingControl = L.Routing.control({
+                waypoints: [ L.latLng(asal.lat, asal.lng), L.latLng(latTarget, lngTarget) ],
+                router: L.Routing.osrmv1({ language: 'id', profile: 'driving' }),
+                lineOptions: { styles: [{color: '#00ffff', weight: 5, opacity: 0.9}] },
+                createMarker: () => null, show: false, addWaypoints: false, fitSelectedRoutes: true
+            }).addTo(map);
+
+            routingControl.on('routesfound', function(e) {
+                routeInstructions = e.routes[0].instructions; currentInstructionIndex = 0; tampilkanInstruksi();
+            });
+
+            isNavigating = true;
+            btnEvakuasiUtama.className = "w-full bg-gray-700 hover:bg-gray-800 text-white font-bold font-mono text-xs px-6 py-3.5 border border-gray-500 uppercase transition-all rounded-full shadow-modern flex items-center justify-center space-x-2";
+            document.getElementById('iconBtnEvakuasi').innerText = "🛑";
+            document.getElementById('textBtnEvakuasi').innerText = "Batalkan Navigasi";
+
+            logMsg(`Navigasi menuju ${namaPosko} aktif.`);
+            map.closePopup();
+            if(window.innerWidth < 768) sidebar.classList.add('-translate-x-full');
+        };
+
+        window.prosesEvakuasiTerdekat = function() {
+            const mode = document.getElementById('statusBanjir').value;
+            if(!markerUser) setLokasiUser(L.latLng(fixCoord[0], fixCoord[1]));
+            
+            let poskoAktif = dataPosko.filter(p => (mode === "banjir2" ? true : p.z === 1) && p.status !== "Penuh");
+            if(poskoAktif.length === 0) { alert("Semua posko telah penuh!"); return; }
+
+            const asal = markerUser.getLatLng();
+            let jarakTerdekat = Infinity, poskoTarget = null;
+            
+            poskoAktif.forEach(p => {
+                const R = 6371; const dLat = (p.latlng.lat - asal.lat) * Math.PI / 180; const dLon = (p.latlng.lng - asal.lng) * Math.PI / 180;
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(asal.lat * Math.PI / 180) * Math.cos(p.latlng.lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+                const d = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+                if(d < jarakTerdekat) { jarakTerdekat = d; poskoTarget = p; }
+            });
+
+            if(poskoTarget) prosesEvakuasiKeTarget(poskoTarget.latlng.lat, poskoTarget.latlng.lng, poskoTarget.nama, poskoTarget.status);
+        };
+
+        function tampilkanInstruksi() {
+            if(routeInstructions.length === 0) return;
+            const ui = document.getElementById('floatingNav');
+            const step = routeInstructions[currentInstructionIndex];
+            
+            if(step) {
+                ui.classList.remove('hidden');
+                let distance = step.distance >= 1000 ? (step.distance/1000).toFixed(1) + ' KM' : Math.round(step.distance) + ' M';
+                document.getElementById('navDistance').innerText = distance;
+                document.getElementById('navInstruction').innerText = step.text;
+                
+                let icn = "⬆️";
+                if(step.type.includes("Left")) icn = "⬅️";
+                if(step.type.includes("Right")) icn = "➡️";
+                if(step.type === "DestinationReached") icn = "📍";
+                document.getElementById('navIcon').innerText = icn;
+            }
+        }
+        
+        document.getElementById('floatingNav').addEventListener('click', () => {
+            if(currentInstructionIndex < routeInstructions.length - 1) {
+                currentInstructionIndex++; tampilkanInstruksi();
+            } else {
+                document.getElementById('floatingNav').classList.add('hidden');
+                logMsg("Anda telah tiba di tujuan.");
+            }
+        });
+
+        document.getElementById('toggleJalan').addEventListener('change', function() { if(this.checked) layerJalan.addTo(map); else map.removeLayer(layerJalan); });
+        document.getElementById('toggleSungai').addEventListener('change', function() { if(this.checked && layerSungai) layerSungai.addTo(map); else if(layerSungai) map.removeLayer(layerSungai); });
+        document.getElementById('statusBanjir').addEventListener('change', perbaruiPeta);
+        document.getElementById('btnGPS').addEventListener('click', () => { setLokasiUser(L.latLng(fixCoord[0], fixCoord[1])); if(window.innerWidth < 768) sidebar.classList.add('-translate-x-full'); });
+        map.on('click', (e) => { if(!routingControl) setLokasiUser(e.latlng); });
+    </script>
+</body>
+</html>

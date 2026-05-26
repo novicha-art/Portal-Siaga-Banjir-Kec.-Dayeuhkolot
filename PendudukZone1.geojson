@@ -1,0 +1,17 @@
+{
+"type": "FeatureCollection",
+"name": "PendudukZone1",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "id": 1, "NAMA": "ZONA 1", "JML WARGA": 124 }, "geometry": { "type": "Point", "coordinates": [ 107.590653101045277, -6.978403097553028 ] } },
+{ "type": "Feature", "properties": { "id": 2, "NAMA": "ZONA 2", "JML WARGA": 678 }, "geometry": { "type": "Point", "coordinates": [ 107.592757806492045, -6.979493034302248 ] } },
+{ "type": "Feature", "properties": { "id": 3, "NAMA": "ZONA 3", "JML WARGA": 333 }, "geometry": { "type": "Point", "coordinates": [ 107.602499585988525, -6.975561745199889 ] } },
+{ "type": "Feature", "properties": { "id": 4, "NAMA": "ZONA 4", "JML WARGA": 122 }, "geometry": { "type": "Point", "coordinates": [ 107.601099581026176, -6.980336795682248 ] } },
+{ "type": "Feature", "properties": { "id": 5, "NAMA": "ZONA 5", "JML WARGA": 889 }, "geometry": { "type": "Point", "coordinates": [ 107.60768430235251, -6.978577863273158 ] } },
+{ "type": "Feature", "properties": { "id": 6, "NAMA": "ZONA 6", "JML WARGA": 578 }, "geometry": { "type": "Point", "coordinates": [ 107.612269553504404, -6.976533292267725 ] } },
+{ "type": "Feature", "properties": { "id": 7, "NAMA": "ZONA 7", "JML WARGA": 456 }, "geometry": { "type": "Point", "coordinates": [ 107.61759145156266, -6.973376234097569 ] } },
+{ "type": "Feature", "properties": { "id": 8, "NAMA": "ZONA 8", "JML WARGA": 1129 }, "geometry": { "type": "Point", "coordinates": [ 107.620484096000041, -6.981112546999952 ] } },
+{ "type": "Feature", "properties": { "id": 9, "NAMA": "ZONA 9", "JML WARGA": 997 }, "geometry": { "type": "Point", "coordinates": [ 107.620808644174119, -6.98558352568884 ] } },
+{ "type": "Feature", "properties": { "id": 10, "NAMA": "ZONA 10", "JML WARGA": 1478 }, "geometry": { "type": "Point", "coordinates": [ 107.626451696000061, -6.987081967999927 ] } }
+]
+}

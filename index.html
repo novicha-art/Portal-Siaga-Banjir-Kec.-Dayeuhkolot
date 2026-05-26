@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoEvac - Portal Siaga Banjir Dayeuhkolot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+
+    <style>
+        body { background-color: #f8fafc; font-family: 'Poppins', sans-serif; overflow-x: hidden; }
+        .rounded-modern { border-radius: 8px; }
+        .shadow-modern { box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05); }
+        .hero-bg {
+            background-image: linear-gradient(to right, rgba(31, 41, 55, 0.95), rgba(31, 41, 55, 0.7)), url('https://images.unsplash.com/photo-1547683905-f686c993aae5?q=80&w=1000&auto=format&fit=crop');
+            background-size: cover; background-position: center;
+        }
+        .leaflet-popup-content-wrapper { background: #1f2937; color: #ffffff; border-radius: 8px; border: 1px solid #4b5563; }
+        .leaflet-popup-tip { background: #1f2937; }
+        .map-container { z-index: 1; } 
+        html { scroll-behavior: smooth; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #9ca3af; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+        .animate-marquee { display: inline-block; white-space: nowrap; animation: marquee 25s linear infinite; }
+        .custom-marker-container { display: flex; flex-direction: column; align-items: center; justify-content: center; transform: translateY(-50%); filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35)); }
+        .marker-label { 
+            color: #fff; padding: 3px 8px; 
+            font-family: 'Poppins', sans-serif; white-space: nowrap; font-weight: 700; margin-top: 3px; text-transform: uppercase;
+            border-radius: 5px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); font-size: 11px; letter-spacing: 0.03em;
+            border: 1.5px solid rgba(255,255,255,0.35);
+        }
+
+        /* Override Leaflet Layer Control agar tampil lebih rapi */
+        .leaflet-control-layers {
+            background: #1f2937 !important;
+            border: 1px solid #4b5563 !important;
+            border-radius: 8px !important;
+            color: #e5e7eb !important;
+            font-family: 'Poppins', sans-serif !important;
+            font-size: 11px !important;
+        }
+        .leaflet-control-layers-separator { border-top: 1px solid #4b5563 !important; }
+        .leaflet-control-layers label { color: #d1d5db !important; }
+        .leaflet-control-layers-toggle {
+            background-color: #1f2937 !important;
+            border: 1px solid #4b5563 !important;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen bg-gray-50">
+
+    <!-- TOP BAR: Marquee + Clock -->
+    <div class="fixed top-0 left-0 w-full bg-red-600 text-white text-[10px] md:text-xs py-2 border-b border-red-800 flex justify-between items-center px-4 z-[4000] shadow-md h-8">
+        <div class="flex-1 overflow-hidden relative h-4 mr-4">
+            <div class="animate-marquee absolute w-full font-bold tracking-widest uppercase">
+                ⚠️ PERINGATAN DINI: WASPADA BANJIR KECAMATAN DAYEUHKOLOT - TETAP TENANG DAN IKUTI ARAHAN PETUGAS ⚠️
+            </div>
+        </div>
+        <div id="realtimeClock" class="font-bold min-w-max bg-black/30 px-2 py-0.5 rounded shadow-inner">--:-- WIB</div>
+    </div>
+
+    <div class="flex flex-1 pt-8 h-full overflow-hidden">
+
+        <!-- SIDEBAR -->
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-[3000] w-64 bg-[#1f2937] text-gray-300 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 flex flex-col shadow-2xl md:shadow-none">
+            <div class="p-6 border-b border-gray-700 flex justify-between items-center bg-gray-900/40">
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 bg-blue-500 rounded-md flex items-center justify-center text-white font-bold shadow">G</div>
+                    <h1 class="text-xl font-bold text-white tracking-wide">GeoEvac</h1>
+                </div>
+                <button id="btnCloseSidebar" class="md:hidden text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+
+            <nav class="flex-1 p-4 space-y-2 overflow-y-auto text-sm">
+                <a href="#beranda" class="scroll-link w-full flex items-center space-x-3 px-4 py-3 rounded-modern transition-all bg-blue-600/20 text-blue-400 border border-blue-500/30">
+                    <span>🏠</span> <span>Beranda</span>
+                </a>
+                <a href="#peta" class="scroll-link w-full flex items-center space-x-3 px-4 py-3 rounded-modern transition-all hover:bg-gray-800 hover:text-white">
+                    <span>🗺️</span> <span>Peta Banjir</span>
+                </a>
+                <a href="#posko" class="scroll-link w-full flex items-center space-x-3 px-4 py-3 rounded-modern transition-all hover:bg-gray-800 hover:text-white">
+                    <span>🏕️</span> <span>Posko Bantuan</span>
+                </a>
+                <a href="#warga" class="scroll-link w-full flex items-center space-x-3 px-4 py-3 rounded-modern transition-all hover:bg-gray-800 hover:text-white">
+                    <span>👥</span> <span>Titik Kumpul</span>
+                </a>
+                <a href="#jalur-evakuasi" class="scroll-link w-full flex items-center space-x-3 px-4 py-3 rounded-modern transition-all hover:bg-gray-800 hover:text-white">
+                    <span>🛣️</span> <span>Jalur Evakuasi Map</span>
+                </a>
+                <a href="#laporan" class="scroll-link w-full flex items-center space-x-3 px-4 py-3 rounded-modern transition-all hover:bg-gray-800 hover:text-white">
+                    <span>✍️</span> <span>Laporan Warga</span>
+                </a>
+                <hr class="border-gray-700 my-4">
+                <a href="evakuasi.html" class="w-full flex items-center space-x-3 px-4 py-3 rounded-modern transition-all bg-red-600/10 hover:bg-red-600/20 text-red-400 hover:text-red-300 border border-red-700 border-dashed font-bold">
+                    <span>🚨</span> <span>Navigasi Rute Live</span>
+                </a>
+            </nav>
+            <div class="p-4 bg-gray-900/80 border-t border-gray-600">
+                <div id="logMessage" class="text-gray-300 font-mono text-[10px] leading-relaxed animate-pulse">Menghubungkan data spasial...</div>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main id="main-scroll" class="flex-1 h-full overflow-y-auto relative flex flex-col scroll-smooth">
+            
+            <!-- Mobile Topbar -->
+            <div class="md:hidden bg-[#1f2937] text-white p-3.5 flex items-center justify-between shadow-md z-[2000] sticky top-0">
+                <div class="flex items-center space-x-2 font-bold text-sm">
+                    <div class="w-6 h-6 bg-blue-500 rounded flex items-center justify-center text-xs">G</div>
+                    <span>GeoEvac</span>
+                </div>
+                <button id="btnOpenSidebar" class="p-1 focus:outline-none">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
+            </div>
+
+            <!-- HERO SECTION -->
+            <section id="beranda" class="min-h-[85vh] md:min-h-[75vh] flex flex-col relative">
+                <div class="hero-bg w-full flex-1 pt-8 pb-28 md:pt-16 md:pb-32 px-4 md:px-8 relative flex flex-col justify-center">
+                    <div class="max-w-5xl mx-auto w-full">
+                        <h2 class="text-3xl md:text-5xl font-extrabold text-white leading-tight mb-3">Informasi Cepat, Aksi Tepat</h2>
+                        <p class="text-gray-300 text-xs md:text-sm font-medium mb-6 max-w-lg">Sistem pendamping evakuasi dan bantuan banjir realtime Kecamatan Dayeuhkolot.</p>
+                        
+                        <div class="bg-[#1f2937]/80 border border-gray-600 backdrop-blur-md rounded-modern p-3 inline-flex flex-col sm:flex-row sm:items-center gap-3 md:gap-6 mb-8 shadow-lg w-fit">
+                            <div class="flex items-center gap-3 pr-4 sm:border-r border-gray-500">
+                                <span id="bmkgIcon" class="text-3xl">☁️</span>
+                                <div class="flex flex-col">
+                                    <span class="text-white font-bold text-xs uppercase tracking-wider">Kec. Dayeuhkolot</span>
+                                    <span id="bmkgDesc" class="text-gray-300 text-[10px] font-mono">Memuat Cuaca...</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4 text-white font-mono text-[10px] md:text-xs">
+                                <div class="flex flex-col items-center"><span class="text-gray-400 text-[9px]">SUHU</span><span id="bmkgTemp" class="font-bold text-sm">--°C</span></div>
+                                <div class="flex flex-col items-center"><span class="text-gray-400 text-[9px]">KELEMBAPAN</span><span id="bmkgHum" class="font-bold">-- %</span></div>
+                                <div class="flex flex-col items-center"><span class="text-gray-400 text-[9px]">ANGIN</span><span id="bmkgWind" class="font-bold">-- km/j</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-4 md:px-8 -mt-20 md:-mt-16 relative z-20 pb-8 w-full max-w-5xl mx-auto">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 w-full">
+                        <a href="#peta" class="bg-white p-3 md:p-4 rounded-modern shadow-modern border border-gray-100 hover:border-blue-400 hover:-translate-y-1 transition-all block group">
+                            <div class="w-8 h-8 md:w-11 md:h-11 bg-blue-50 text-blue-600 rounded-md flex items-center justify-center text-base md:text-xl mb-2">🗺️</div>
+                            <h4 class="font-bold text-gray-800 text-[11px] md:text-xs">Peta Banjir</h4>
+                            <p class="text-[9px] md:text-[10px] text-gray-500 mt-0.5 leading-tight">Pantau wilayah.</p>
+                        </a>
+                        <a href="#posko" class="bg-white p-3 md:p-4 rounded-modern shadow-modern border border-gray-100 hover:border-yellow-400 hover:-translate-y-1 transition-all block group">
+                            <div class="w-8 h-8 md:w-11 md:h-11 bg-yellow-50 text-yellow-600 rounded-md flex items-center justify-center text-base md:text-xl mb-2">🏕️</div>
+                            <h4 class="font-bold text-gray-800 text-[11px] md:text-xs">Posko Bantuan</h4>
+                            <p class="text-[9px] md:text-[10px] text-gray-500 mt-0.5 leading-tight">Cari pengungsian.</p>
+                        </a>
+                        <a href="#warga" class="bg-white p-3 md:p-4 rounded-modern shadow-modern border border-gray-100 hover:border-green-400 hover:-translate-y-1 transition-all block group">
+                            <div class="w-8 h-8 md:w-11 md:h-11 bg-green-50 text-green-600 rounded-md flex items-center justify-center text-base md:text-xl mb-2">👥</div>
+                            <h4 class="font-bold text-gray-800 text-[11px] md:text-xs">Titik Kumpul</h4>
+                            <p class="text-[9px] md:text-[10px] text-gray-500 mt-0.5 leading-tight">Lokasi aman warga.</p>
+                        </a>
+                        <a href="#jalur-evakuasi" class="bg-white p-3 md:p-4 rounded-modern shadow-modern border border-gray-100 hover:border-emerald-400 hover:-translate-y-1 transition-all block group">
+                            <div class="w-8 h-8 md:w-11 md:h-11 bg-emerald-50 text-emerald-600 rounded-md flex items-center justify-center text-base md:text-xl mb-2">🛣️</div>
+                            <h4 class="font-bold text-gray-800 text-[11px] md:text-xs">Jalur Evakuasi</h4>
+                            <p class="text-[9px] md:text-[10px] text-gray-500 mt-0.5 leading-tight">Peta rute aman.</p>
+                        </a>
+                        <a href="#laporan" class="bg-white p-3 md:p-4 rounded-modern shadow-modern border border-gray-100 hover:border-red-400 hover:-translate-y-1 transition-all block group col-span-2 sm:col-span-1">
+                            <div class="w-8 h-8 md:w-11 md:h-11 bg-red-50 text-red-600 rounded-md flex items-center justify-center text-base md:text-xl mb-2">✍️</div>
+                            <h4 class="font-bold text-gray-800 text-[11px] md:text-xs">Laporan Darurat</h4>
+                            <p class="text-[9px] md:text-[10px] text-gray-500 mt-0.5 leading-tight">Kirim kondisi warga.</p>
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================================ -->
+            <!-- SECTION PETA BANJIR (DIPERBARUI: Layer Control + Multi-Overlay) -->
+            <!-- ============================================================ -->
+            <section id="peta" class="p-4 md:p-8 pt-2">
+                <div class="max-w-5xl mx-auto bg-white rounded-modern shadow-modern p-4 md:p-5 border border-gray-200">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-xs md:text-sm font-bold text-gray-800 uppercase tracking-wide">Peta Kawasan Rawan Banjir</h2>
+                        <div class="flex gap-2 text-[9px] font-mono text-gray-500 items-center">
+                            <span class="inline-block w-3 h-1 bg-red-400 rounded"></span>Tinggi
+                            <span class="inline-block w-3 h-1 bg-yellow-400 rounded ml-2"></span>Sedang
+                            <span class="inline-block w-3 h-1 bg-blue-400 rounded ml-2"></span>Rendah
+                        </div>
+                    </div>
+                    <!-- Peta Banjir dengan Layer Control Toggle -->
+                    <div id="mapBanjir" class="w-full h-[50vh] md:h-[65vh] border border-gray-300 map-container rounded-modern"></div>
+                    <p class="text-[9px] text-gray-400 font-mono mt-2">💡 Gunakan kontrol layer di pojok kanan atas peta untuk mengganti basemap atau mengaktifkan/menonaktifkan overlay.</p>
+                </div>
+            </section>
+
+            <!-- SECTION POSKO -->
+            <section id="posko" class="p-4 md:p-8 pt-2">
+                <div class="max-w-5xl mx-auto bg-white rounded-modern shadow-modern p-4 md:p-5 border border-gray-200">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-xs md:text-sm font-bold text-gray-800 uppercase tracking-wide">Peta Sebaran Posko &amp; Kapasitas</h2>
+                        <div class="flex gap-2 text-[9px] font-mono text-gray-500 items-center flex-wrap justify-end">
+                            <span class="inline-block w-3 h-3 rounded-sm bg-indigo-600 mr-0.5 align-middle"></span>Posko Utama
+                            <span class="inline-block w-3 h-3 rounded-sm bg-orange-500 mr-0.5 align-middle ml-2"></span>Kecamatan
+                            <span class="inline-block w-3 h-3 rounded-sm bg-red-600 mr-0.5 align-middle ml-2"></span>PMI
+                        </div>
+                    </div>
+                    <div id="mapPosko" class="w-full h-[45vh] md:h-[60vh] border border-gray-300 map-container rounded-modern"></div>
+                    <p class="text-[9px] text-gray-400 font-mono mt-2">&#128161; Gunakan kontrol layer di pojok kanan atas untuk mengganti basemap atau toggle overlay.</p>
+                </div>
+            </section>
+
+            <!-- SECTION WARGA -->
+            <section id="warga" class="p-4 md:p-8 pt-2">
+                <div class="max-w-5xl mx-auto bg-white rounded-modern shadow-modern p-4 md:p-5 border border-gray-200">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-xs md:text-sm font-bold text-gray-800 uppercase tracking-wide">Titik Kumpul Warga Per Zona</h2>
+                        <div class="flex gap-2 text-[9px] font-mono text-gray-500 items-center flex-wrap justify-end">
+                            <span class="inline-block w-3 h-3 rounded-full bg-gray-500 mr-0.5 align-middle"></span>Titik Kumpul
+                            <span class="w-3 border-t-2 border-dashed border-red-600 align-middle inline-block ml-2"></span>Batas Kec.
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div class="lg:col-span-1 border border-gray-200 rounded-modern overflow-hidden flex flex-col h-[35vh] md:h-[60vh]">
+                            <div class="bg-gray-50 p-3 border-b border-gray-200 font-bold text-xs text-gray-700">Daftar Titik / Identitas Zona</div>
+                            <div class="flex-1 overflow-y-auto p-0">
+                                <table class="w-full text-left text-[10px] md:text-[11px]">
+                                    <tbody id="tableWarga" class="divide-y divide-gray-100">
+                                        <tr><td class="p-4 text-center text-gray-400 animate-pulse">Menghubungkan data...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="lg:col-span-2">
+                            <div id="mapWarga" class="w-full h-[45vh] md:h-[60vh] border border-gray-300 map-container rounded-modern"></div>
+                        </div>
+                    </div>
+                    <p class="text-[9px] text-gray-400 font-mono mt-2">&#128161; Gunakan kontrol layer di pojok kanan atas peta untuk mengganti basemap atau toggle overlay.</p>
+                </div>
+            </section>
+
+            <!-- SECTION JALUR EVAKUASI -->
+            <section id="jalur-evakuasi" class="p-4 md:p-8 pt-2">
+                <div class="max-w-5xl mx-auto bg-white rounded-modern shadow-modern p-4 md:p-5 border border-gray-200">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-xs md:text-base font-bold text-gray-800 uppercase tracking-wide">Jaringan Peta Jalur Evakuasi Darurat</h2>
+                        <div class="flex gap-2 text-[9px] font-mono text-gray-500 items-center flex-wrap justify-end">
+                            <span class="inline-block w-5 border-t-2 border-emerald-500 border-dashed align-middle mr-0.5"></span>Jalur Evakuasi
+                            <span class="w-3 border-t-2 border-dashed border-red-600 align-middle inline-block ml-2"></span>Batas Kec.
+                        </div>
+                    </div>
+                    <div id="mapJalur" class="w-full h-[45vh] md:h-[60vh] border border-gray-300 map-container rounded-modern"></div>
+                    <p class="text-[9px] text-gray-400 font-mono mt-2">&#128161; Gunakan kontrol layer di pojok kanan atas untuk mengganti basemap atau toggle overlay.</p>
+                </div>
+            </section>
+
+            <!-- SECTION LAPORAN -->
+            <section id="laporan" class="p-4 md:p-8 pt-2 pb-16">
+                <div class="max-w-5xl mx-auto bg-white rounded-modern shadow-modern p-5 md:p-6 border border-gray-200">
+                    <div class="border-b border-gray-200 pb-3 mb-5">
+                        <h2 class="text-sm md:text-lg font-bold text-gray-800 uppercase tracking-wide">Formulir Pelaporan Situasi Darurat</h2>
+                        <p class="text-[11px] text-gray-400 mt-1 font-mono">Laporkan ketinggian air atau kebutuhan logistik mendesak di sekitar lingkungan Anda.</p>
+                    </div>
+                    
+                    <form onsubmit="event.preventDefault(); alert('Laporan darurat berhasil terekam ke sistem pusat!'); this.reset();" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+                        <div>
+                            <label class="block font-bold text-gray-600 mb-1">NAMA PELAPOR</label>
+                            <input type="text" required placeholder="Nama lengkap Anda" class="w-full bg-gray-50 border border-gray-300 p-2.5 rounded-modern focus:outline-none focus:border-blue-500 text-gray-800">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-gray-600 mb-1">NOMOR TELEPON / WHATSAPP</label>
+                            <input type="tel" required placeholder="Contoh: 08123xxxx" class="w-full bg-gray-50 border border-gray-300 p-2.5 rounded-modern focus:outline-none focus:border-blue-500 text-gray-800">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-gray-600 mb-1">WILAYAH ASAL (ZONASI)</label>
+                            <select required class="w-full bg-gray-50 border border-gray-300 p-2.5 rounded-modern focus:outline-none focus:border-blue-500 text-gray-800">
+                                <option value="" disabled selected>Pilih Identitas Lokasi</option>
+                                <option value="z1">Zona Penduduk Barat</option>
+                                <option value="z2">Zona Penduduk Timur</option>
+                                <option value="z10">Zona 10 (Utama)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block font-bold text-gray-600 mb-1">KATEGORI KONDISI DARURAT</label>
+                            <select required class="w-full bg-gray-50 border border-gray-300 p-2.5 rounded-modern focus:outline-none focus:border-blue-500 text-gray-800">
+                                <option value="" disabled selected>Pilih Status Kejadian</option>
+                                <option value="air">Kenaikan Cepat Debit Air Sungai</option>
+                                <option value="medis">Butuh Evakuasi Medis / Lansia Sakit</option>
+                                <option value="logistik">Kekurangan Bahan Logistik Pengungsian</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block font-bold text-gray-600 mb-1">DESKRIPSI RINCIAN KEJADIAN DI LAPANGAN</label>
+                            <textarea required rows="4" placeholder="Tuliskan keterangan jumlah warga terdampak atau kondisi genangan air..." class="w-full bg-gray-50 border border-gray-300 p-2.5 rounded-modern focus:outline-none focus:border-blue-500 text-gray-800 font-sans"></textarea>
+                        </div>
+                        <div class="md:col-span-2 pt-2">
+                            <button type="submit" class="w-full bg-[#1f2937] hover:bg-gray-800 text-white font-bold py-3 px-4 rounded-modern font-sans uppercase tracking-wider transition-colors shadow">
+                                Kirim Laporan Ke Posko Komando
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // ================================================================
+        // BMKG WEATHER FETCH
+        // ================================================================
+        async function fetchCuacaBMKG() {
+            try {
+                const res = await fetch('https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=32.04.11.2001');
+                const result = await res.json();
+                if(result?.data?.[0]?.cuaca?.[0]?.[0]) {
+                    const cuaca = result.data[0].cuaca[0][0];
+                    document.getElementById('bmkgDesc').innerText = cuaca.weather_desc;
+                    document.getElementById('bmkgTemp').innerText = cuaca.t + "°C";
+                    document.getElementById('bmkgHum').innerText = cuaca.hu + " %";
+                    document.getElementById('bmkgWind').innerText = cuaca.ws + " km/j " + (cuaca.wd || "");
+                    let icon = "🌤️"; const desc = cuaca.weather_desc.toLowerCase();
+                    if(desc.includes("hujan")) icon = "🌧️"; if(desc.includes("cerah")) icon = "☀️"; if(desc.includes("petir")) icon = "⛈️";
+                    document.getElementById('bmkgIcon').innerText = icon;
+                }
+            } catch (error) {
+                document.getElementById('bmkgDesc').innerText = "Berawan";
+                document.getElementById('bmkgTemp').innerText = "27°C";
+                document.getElementById('bmkgHum').innerText = "78 %";
+                document.getElementById('bmkgWind').innerText = "12 km/j Barat";
+            }
+        }
+        fetchCuacaBMKG();
+
+        // ================================================================
+        // REALTIME CLOCK
+        // ================================================================
+        function updateClock() {
+            const now = new Date();
+            const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+            document.getElementById('realtimeClock').innerText = `${days[now.getDay()]}, ${now.toLocaleTimeString('id-ID', { hour12: false })} WIB`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ================================================================
+        // SIDEBAR TOGGLE
+        // ================================================================
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.createElement('div');
+        overlay.className = "fixed inset-0 bg-black/50 z-[2500] hidden md:hidden backdrop-blur-sm transition-opacity";
+        document.body.appendChild(overlay);
+
+        function toggleSidebar() {
+            sidebar.classList.toggle('-translate-x-full');
+            overlay.classList.toggle('hidden');
+        }
+        document.getElementById('btnOpenSidebar').addEventListener('click', toggleSidebar);
+        document.getElementById('btnCloseSidebar').addEventListener('click', toggleSidebar);
+        overlay.addEventListener('click', toggleSidebar);
+
+        document.querySelectorAll('.scroll-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                const targetId = this.getAttribute('href');
+                if(targetId.startsWith('#')) {
+                    e.preventDefault();
+                    document.querySelector(targetId).scrollIntoView({ behavior: 'smooth' });
+                    document.querySelectorAll('.scroll-link').forEach(l => {
+                        l.classList.remove('bg-blue-600/20', 'text-blue-400', 'border-blue-500/30');
+                        l.classList.add('hover:bg-gray-800', 'text-gray-300');
+                    });
+                    this.classList.add('bg-blue-600/20', 'text-blue-400', 'border-blue-500/30');
+                    this.classList.remove('hover:bg-gray-800', 'text-gray-300');
+                    if(window.innerWidth < 768) toggleSidebar();
+                }
+            });
+        });
+
+        // ================================================================
+        // PROJ4 DEFINISI PROYEKSI
+        // World Mercator (untuk Rawan Banjir) & UTM Zone 52N (untuk Jalur Evakuasi)
+        // ================================================================
+        proj4.defs("EPSG:3395", "+proj=merc +lon_0=0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs");
+        proj4.defs("EPSG:32652", "+proj=utm +zone=52 +datum=WGS84 +units=m +no_defs");
+
+        /**
+         * Mengkonversi koordinat GeoJSON dari proyeksi sumber ke WGS84 (EPSG:4326)
+         * @param {Object} geojson - objek GeoJSON yang akan dikonversi
+         * @param {string} tipeSumber - kode EPSG proyeksi asal, misal 'EPSG:3395'
+         * @returns {Object} GeoJSON baru dengan koordinat WGS84
+         */
+        function perbaikiGeoJSON(geojson, tipeSumber) {
+            let fileCopy = JSON.parse(JSON.stringify(geojson));
+            let transform = proj4(tipeSumber, 'EPSG:4326');
+            
+            function rekur(coords) {
+                if (typeof coords[0] === 'number') {
+                    let h = transform.forward([coords[0], coords[1]]);
+                    return [h[0], h[1]];
+                }
+                return coords.map(rekur);
+            }
+            
+            fileCopy.features.forEach(f => {
+                f.geometry.coordinates = rekur(f.geometry.coordinates);
+            });
+            return fileCopy;
+        }
+
+        // ================================================================
+        // HELPER: WARNA FLOOD BERDASARKAN PROPERTY
+        // ================================================================
+        function getFloodStyle(feature) {
+            let val = JSON.stringify(feature.properties).toLowerCase();
+            let color = "#3b82f6"; // biru = rendah (default)
+            if (val.includes("tinggi") || val.includes('"gridcode":3')) color = "#ef4444";      // merah = tinggi
+            else if (val.includes("sedang") || val.includes('"gridcode":2')) color = "#facc15"; // kuning = sedang
+            return { fillColor: color, fillOpacity: 0.5, color: color, weight: 0, stroke: false };
+        }
+
+        // ================================================================
+        // HELPER: BUAT CUSTOM MARKER ICON
+        // ================================================================
+        // SVG ikon posko: segitiga/flag lebih besar & kontras
+        const svgPoskoBase = `<svg width="34" height="34" viewBox="0 0 24 24" fill="#3b82f6" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round"><path d="M12 2L2 21h20L12 2z"/></svg>`;
+
+        // SVG ikon warga: pin bulat dengan titik tengah
+        const svgWarga = `<svg width="30" height="30" viewBox="0 0 24 24" fill="#6b7280" stroke="#ffffff" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="#fff" stroke="none"/></svg>`;
+
+        function buatMarkerIcon(svg, label, bgColor) {
+            const coloredSvg = svg.replace(/fill="[^"]*"/, 'fill="' + bgColor + '"');
+            const labelHtml  = '<div class="marker-label" style="background-color:' + bgColor + ';">' + label + '</div>';
+            return L.divIcon({
+                className: '',
+                html: '<div class="custom-marker-container">' + coloredSvg + labelHtml + '</div>',
+                iconSize: [40, 52],
+                iconAnchor: [20, 26]
+            });
+        }
+
+        // ================================================================
+        // DEFINISI BASEMAPS (untuk mapBanjir)
+        // ================================================================
+        const darkMap  = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; CartoDB', maxZoom: 19
+        });
+        const lightMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; CartoDB', maxZoom: 19
+        });
+        const satMap   = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri', maxZoom: 19
+        });
+        const topoMap  = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenTopoMap', maxZoom: 17
+        });
+
+        // ================================================================
+        // INISIALISASI PETA
+        // ================================================================
+        const mapOptions = { zoomControl: false, scrollWheelZoom: false };
+
+        // --- mapBanjir: Default pakai lightMap, dilengkapi Layer Control ---
+        const mapBanjir = L.map('mapBanjir', {
+            ...mapOptions,
+            center: [-6.9856, 107.6331],
+            zoom: 14,
+            layers: [lightMap]  // basemap default: Mode Terang
+        });
+
+        // --- mapPosko: default lightMap ---
+        const lightMapPosko = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CartoDB', maxZoom: 19 });
+        const darkMapPosko  = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',  { attribution: '&copy; CartoDB', maxZoom: 19 });
+        const satMapPosko   = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri', maxZoom: 19 });
+        const topoMapPosko  = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: 'OpenTopoMap', maxZoom: 17 });
+
+        const mapPosko = L.map('mapPosko', { ...mapOptions, center: [-6.9856, 107.6331], zoom: 14, layers: [lightMapPosko] });
+
+        // Layer groups mapPosko — posko ON, kecamatan OFF
+        const layerPoskoKecGroup  = L.layerGroup().addTo(mapPosko);  // ON by default
+        const layerPoskoMarkGroup = L.layerGroup().addTo(mapPosko);
+
+        L.control.zoom({ position: 'topright' }).addTo(mapPosko);
+        L.control.layers(
+            { '&#9728;&#65039; Mode Terang': lightMapPosko, '&#127761; Mode Gelap': darkMapPosko, '&#128752;&#65039; Satelit': satMapPosko, '&#127956;&#65039; Kontur': topoMapPosko },
+            { '&#128993; Posko Bantuan': layerPoskoMarkGroup, '&#128205; Batas Kecamatan': layerPoskoKecGroup },
+            { position: 'topright', collapsed: true }
+        ).addTo(mapPosko);
+
+        // --- mapWarga: default lightMap ---
+        const lightMapWarga = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CartoDB', maxZoom: 19 });
+        const darkMapWarga  = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',  { attribution: '&copy; CartoDB', maxZoom: 19 });
+        const satMapWarga   = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri', maxZoom: 19 });
+        const topoMapWarga  = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: 'OpenTopoMap', maxZoom: 17 });
+
+        const mapWarga = L.map('mapWarga', { ...mapOptions, center: [-6.9856, 107.6331], zoom: 14, layers: [lightMapWarga] });
+
+        // Layer groups mapWarga — titik kumpul ON, kecamatan OFF
+        const layerWargaKecGroup  = L.layerGroup().addTo(mapWarga);  // ON by default
+        const layerWargaMarkGroup = L.layerGroup().addTo(mapWarga);
+
+        L.control.zoom({ position: 'topright' }).addTo(mapWarga);
+        L.control.layers(
+            { '&#9728;&#65039; Mode Terang': lightMapWarga, '&#127761; Mode Gelap': darkMapWarga, '&#128752;&#65039; Satelit': satMapWarga, '&#127956;&#65039; Kontur': topoMapWarga },
+            { '&#9898; Titik Kumpul': layerWargaMarkGroup, '&#128205; Batas Kecamatan': layerWargaKecGroup },
+            { position: 'topright', collapsed: true }
+        ).addTo(mapWarga);
+
+        // --- mapJalur: default lightMap ---
+        const lightMapJalur = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CartoDB', maxZoom: 19 });
+        const darkMapJalur  = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',  { attribution: '&copy; CartoDB', maxZoom: 19 });
+        const satMapJalur   = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri', maxZoom: 19 });
+        const topoMapJalur  = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: 'OpenTopoMap', maxZoom: 17 });
+
+        const mapJalur = L.map('mapJalur', { ...mapOptions, center: [-6.9856, 107.6331], zoom: 14, layers: [lightMapJalur] });
+
+        // Layer groups mapJalur — jalur ON, kecamatan OFF
+        const layerJalurKecGroup  = L.layerGroup().addTo(mapJalur);  // ON by default
+        const layerJalurLineGroup = L.layerGroup().addTo(mapJalur);
+
+        L.control.zoom({ position: 'topright' }).addTo(mapJalur);
+        L.control.layers(
+            { '&#9728;&#65039; Mode Terang': lightMapJalur, '&#127761; Mode Gelap': darkMapJalur, '&#128752;&#65039; Satelit': satMapJalur, '&#127956;&#65039; Kontur': topoMapJalur },
+            { '&#128994; Jalur Evakuasi': layerJalurLineGroup, '&#128205; Batas Kecamatan': layerJalurKecGroup },
+            { position: 'topright', collapsed: true }
+        ).addTo(mapJalur);
+
+        // zoom control mapBanjir (sudah ada layers[] di atas)
+        L.control.zoom({ position: 'topright' }).addTo(mapBanjir);
+
+        // ================================================================
+        // LAYER GROUPS untuk mapBanjir (bisa di-toggle on/off)
+        // ================================================================
+        // Default ON: hanya layerBanjirGroup (Kawasan Banjir)
+        // Default OFF: jalur, posko, warga, kecamatan — tidak di-addTo mapBanjir saat init
+        const layerKecGroup    = L.layerGroup().addTo(mapBanjir);  // ON by default
+        const layerBanjirGroup = L.layerGroup().addTo(mapBanjir);  // ON by default
+        const layerJalurGroup  = L.layerGroup();                   // OFF by default
+        const layerPoskoGroup  = L.layerGroup();                   // OFF by default
+        const layerWargaGroup  = L.layerGroup();                   // OFF by default
+
+        // Konfigurasi basemap switcher dan overlay toggle
+        const baseMapsControl = {
+            "🌑 Mode Gelap"  : darkMap,
+            "☀️ Mode Terang" : lightMap,
+            "🛰️ Satelit"    : satMap,
+            "🏔️ Kontur"     : topoMap
+        };
+        const overlayMapsControl = {
+            "🔴 Kawasan Banjir" : layerBanjirGroup,
+            "🟢 Jalur Evakuasi" : layerJalurGroup,
+            "🟡 Posko Bantuan"  : layerPoskoGroup,
+            "⚪ Titik Kumpul"   : layerWargaGroup,
+            "📍 Batas Kecamatan": layerKecGroup
+        };
+
+        // Tambahkan Layer Control ke mapBanjir
+        L.control.layers(baseMapsControl, overlayMapsControl, {
+            position: 'topright',
+            collapsed: true  // collapsed = ringkas, expand saat diklik
+        }).addTo(mapBanjir);
+
+        // ================================================================
+        // AMBIL DATA GEOJSON & RENDER KE PETA
+        // ================================================================
+        Promise.all([
+            fetch('kec.dayeuhkolot.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch('Rawan_Banjir.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch('Jalur_Evakuasi.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch('POSKO 1.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch('POSKO 2.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch('PendudukZone1.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch('PendudukZone2.geojson').then(r => r.ok ? r.json() : null).catch(() => null)
+        ]).then(([dKec, dRawanBanjir, dJalurEvak, dP1, dP2, dW1, dW2]) => {
+
+            const styleKec = { color: '#dc2626', weight: 2.5, fillOpacity: 0, dashArray: '8, 6' };
+
+            // --- Batas Kecamatan: ke group masing-masing peta (default OFF) ---
+            if (dKec) {
+                L.geoJSON(dKec, { style: styleKec }).addTo(layerKecGroup);      // mapBanjir (OFF)
+                L.geoJSON(dKec, { style: styleKec }).addTo(layerPoskoKecGroup); // mapPosko  (OFF)
+                L.geoJSON(dKec, { style: styleKec }).addTo(layerWargaKecGroup); // mapWarga  (OFF)
+                L.geoJSON(dKec, { style: styleKec }).addTo(layerJalurKecGroup); // mapJalur  (OFF)
+            }
+
+            // --- Kawasan Rawan Banjir (EPSG:3395 -> WGS84) ---
+            if (dRawanBanjir) {
+                let dataFixBanjir = perbaikiGeoJSON(dRawanBanjir, 'EPSG:3395');
+                L.geoJSON(dataFixBanjir, { style: getFloodStyle }).addTo(layerBanjirGroup);
+            }
+
+            // --- Jalur Evakuasi (EPSG:32652 -> WGS84) ---
+            if (dJalurEvak) {
+                let dataFixJalur = perbaikiGeoJSON(dJalurEvak, 'EPSG:32652');
+                const jalurStyle = { color: '#10b981', weight: 4, opacity: 0.9, dashArray: '4, 4' };
+                L.geoJSON(dataFixJalur, { style: jalurStyle }).addTo(layerJalurGroup);     // mapBanjir overlay (OFF)
+                L.geoJSON(dataFixJalur, { style: jalurStyle }).addTo(layerJalurLineGroup); // mapJalur (ON)
+            }
+
+            // --- Posko Bantuan ---
+            let poskos = [];
+            if (dP1) dP1.features.forEach(f => poskos.push({ ...f, jenis: 'Utama' }));
+            if (dP2) dP2.features.forEach((f, i) => poskos.push({ ...f, jenis: i % 2 === 0 ? 'Kecamatan' : 'PMI' }));
+
+            poskos.forEach(p => {
+                const lat   = p.geometry.coordinates[1];
+                const lng   = p.geometry.coordinates[0];
+                const color = p.jenis === 'Utama' ? '#4f46e5' : (p.jenis === 'PMI' ? '#dc2626' : '#ea580c');
+                const popup = `<b>${p.properties.NAMA}</b><br><span style="font-size:9px">Kategori: Posko ${p.jenis}</span>`;
+
+                L.marker([lat, lng], { icon: buatMarkerIcon(svgPoskoBase, p.properties.NAMA, color) })
+                    .addTo(layerPoskoGroup).bindPopup(popup);           // mapBanjir overlay (OFF)
+                L.marker([lat, lng], { icon: buatMarkerIcon(svgPoskoBase, p.properties.NAMA, color) })
+                    .addTo(layerPoskoMarkGroup).bindPopup(popup);       // mapPosko (ON)
+            });
+
+            // --- Titik Kumpul Warga ---
+            let wargas = [];
+            if (dW1) dW1.features.forEach(f => wargas.push(f));
+            if (dW2) dW2.features.forEach(f => wargas.push(f));
+
+            const tableTbody = document.getElementById('tableWarga');
+            tableTbody.innerHTML = '';
+
+            wargas.forEach(w => {
+                const nama = w.properties.NAMA || 'Zona';
+                const lat  = w.geometry.coordinates[1];
+                const lng  = w.geometry.coordinates[0];
+
+                L.marker([lat, lng], { icon: buatMarkerIcon(svgWarga, nama, '#6b7280') })
+                    .addTo(layerWargaGroup);                            // mapBanjir overlay (OFF)
+                L.marker([lat, lng], { icon: buatMarkerIcon(svgWarga, nama, '#6b7280') })
+                    .addTo(layerWargaMarkGroup);                        // mapWarga (ON)
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-blue-50 cursor-pointer transition-colors";
+                tr.innerHTML = `
+                    <td class="p-3 font-bold text-gray-800 border-b border-gray-100">Titik Kumpul ${nama}</td>
+                    <td class="p-3 text-right border-b border-gray-100">
+                        <button class="bg-[#1f2937] text-white px-2.5 py-1.5 rounded text-[9px] uppercase font-bold hover:bg-blue-600 transition-colors shadow">Lokasi &#10132;</button>
+                    </td>`;
+                tr.addEventListener('click', () => {
+                    document.querySelector('#warga').scrollIntoView({ behavior: 'smooth' });
+                    mapWarga.flyTo([lat, lng], 17, { animate: true, duration: 1 });
+                });
+                tableTbody.appendChild(tr);
+            });
+
+            document.getElementById('logMessage').innerText = "✅ Data spasial berhasil dikonversi & ditampilkan.";
+
+        }).catch(err => {
+            console.error("Error loading GeoJSON:", err);
+            document.getElementById('logMessage').innerText = "⚠️ Gagal memuat sebagian data spasial.";
+        });
+    </script>
+</body>
+</html>
