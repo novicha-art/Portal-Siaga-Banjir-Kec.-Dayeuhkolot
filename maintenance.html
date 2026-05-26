@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maintenance Mode</title>
+
+  <!-- Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    *{
+      margin:0;
+      padding:0;
+      box-sizing:border-box;
+    }
+
+    body{
+      font-family:'Poppins',sans-serif;
+      min-height:100vh;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      background:#0f172a;
+      overflow:hidden;
+      color:white;
+      position:relative;
+    }
+
+    /* Background Glow */
+    .bg-glow{
+      position:absolute;
+      width:500px;
+      height:500px;
+      background:radial-gradient(circle, rgba(59,130,246,0.25), transparent 70%);
+      top:-120px;
+      right:-120px;
+      filter:blur(20px);
+      animation:floatGlow 6s ease-in-out infinite alternate;
+    }
+
+    @keyframes floatGlow{
+      from{
+        transform:translateY(0px);
+      }
+      to{
+        transform:translateY(30px);
+      }
+    }
+
+    .container{
+      position:relative;
+      z-index:2;
+      width:90%;
+      max-width:1000px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:40px;
+      padding:40px;
+      border:1px solid rgba(255,255,255,0.08);
+      background:rgba(255,255,255,0.05);
+      backdrop-filter:blur(14px);
+      border-radius:30px;
+      box-shadow:0 10px 40px rgba(0,0,0,0.4);
+    }
+
+    .left{
+      flex:1;
+    }
+
+    .badge{
+      display:inline-block;
+      padding:8px 16px;
+      border-radius:999px;
+      background:rgba(59,130,246,0.15);
+      color:#93c5fd;
+      font-size:14px;
+      margin-bottom:18px;
+    }
+
+    h1{
+      font-size:clamp(32px,5vw,58px);
+      line-height:1.1;
+      margin-bottom:16px;
+      font-weight:700;
+    }
+
+    p{
+      color:#cbd5e1;
+      font-size:16px;
+      line-height:1.7;
+      max-width:500px;
+    }
+
+    .clock{
+      margin-top:30px;
+      font-size:clamp(28px,4vw,46px);
+      font-weight:600;
+      letter-spacing:2px;
+      color:#38bdf8;
+    }
+
+    /* Robot */
+    .robot-wrap{
+      flex:1;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+    }
+
+    .robot{
+      position:relative;
+      width:220px;
+      height:320px;
+      animation:robotFloat 3s ease-in-out infinite;
+    }
+
+    @keyframes robotFloat{
+      0%,100%{
+        transform:translateY(0);
+      }
+      50%{
+        transform:translateY(-12px);
+      }
+    }
+
+    .head{
+      width:140px;
+      height:110px;
+      background:#1e293b;
+      border-radius:24px;
+      margin:0 auto;
+      position:relative;
+      border:2px solid rgba(255,255,255,0.08);
+    }
+
+    .eyes{
+      position:absolute;
+      top:38px;
+      width:100%;
+      display:flex;
+      justify-content:center;
+      gap:25px;
+    }
+
+    .eye{
+      width:18px;
+      height:18px;
+      background:#38bdf8;
+      border-radius:50%;
+      box-shadow:0 0 12px #38bdf8;
+      animation:blink 4s infinite;
+    }
+
+    @keyframes blink{
+      0%,45%,47%,100%{
+        transform:scaleY(1);
+      }
+      46%{
+        transform:scaleY(0.1);
+      }
+    }
+
+    .antenna{
+      position:absolute;
+      top:-28px;
+      left:50%;
+      transform:translateX(-50%);
+      width:6px;
+      height:28px;
+      background:#94a3b8;
+    }
+
+    .antenna::after{
+      content:'';
+      position:absolute;
+      top:-10px;
+      left:50%;
+      transform:translateX(-50%);
+      width:18px;
+      height:18px;
+      background:#38bdf8;
+      border-radius:50%;
+      box-shadow:0 0 12px #38bdf8;
+    }
+
+    .body{
+      width:170px;
+      height:140px;
+      background:#1e293b;
+      margin:18px auto 0;
+      border-radius:24px;
+      position:relative;
+      border:2px solid rgba(255,255,255,0.08);
+    }
+
+    .screen{
+      width:100px;
+      height:50px;
+      background:#0f172a;
+      border-radius:12px;
+      position:absolute;
+      top:24px;
+      left:50%;
+      transform:translateX(-50%);
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,0.08);
+    }
+
+    .code{
+      position:absolute;
+      color:#22c55e;
+      font-size:12px;
+      font-family:monospace;
+      white-space:nowrap;
+      animation:codeRun 3s linear infinite;
+    }
+
+    @keyframes codeRun{
+      0%{
+        top:55px;
+      }
+      100%{
+        top:-40px;
+      }
+    }
+
+    .arms{
+      position:absolute;
+      width:100%;
+      top:25px;
+    }
+
+    .arm{
+      width:20px;
+      height:90px;
+      background:#334155;
+      position:absolute;
+      border-radius:20px;
+      transform-origin:top center;
+    }
+
+    .arm.left{
+      left:-12px;
+      animation:leftArm 1.2s ease-in-out infinite alternate;
+    }
+
+    .arm.right{
+      right:-12px;
+      animation:rightArm 1.2s ease-in-out infinite alternate;
+    }
+
+    @keyframes leftArm{
+      from{
+        transform:rotate(25deg);
+      }
+      to{
+        transform:rotate(50deg);
+      }
+    }
+
+    @keyframes rightArm{
+      from{
+        transform:rotate(-25deg);
+      }
+      to{
+        transform:rotate(-50deg);
+      }
+    }
+
+    .legs{
+      display:flex;
+      justify-content:center;
+      gap:30px;
+      margin-top:8px;
+    }
+
+    .leg{
+      width:24px;
+      height:80px;
+      background:#334155;
+      border-radius:20px;
+    }
+
+    /* Responsive */
+    @media(max-width:768px){
+      .container{
+        flex-direction:column;
+        text-align:center;
+        padding:30px 20px;
+      }
+
+      p{
+        margin:auto;
+      }
+
+      .robot{
+        transform:scale(0.9);
+      }
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="bg-glow"></div>
+
+  <div class="container">
+    
+    <div class="left">
+      <div class="badge">🚧 Website Maintenance</div>
+
+      <h1>Website Sedang Dalam Perbaikan</h1>
+
+      <p>
+        Kami sedang melakukan pembaruan sistem untuk meningkatkan performa dan pengalaman pengguna.
+        Silakan kembali beberapa saat lagi.
+      </p>
+
+      <div class="clock" id="clock">00:00:00</div>
+    </div>
+
+    <div class="robot-wrap">
+      <div class="robot">
+
+        <div class="head">
+          <div class="antenna"></div>
+
+          <div class="eyes">
+            <div class="eye"></div>
+            <div class="eye"></div>
+          </div>
+        </div>
+
+        <div class="body">
+          <div class="screen">
+            <div class="code">
+              &lt;/&gt; coding...<br>
+              function()<br>
+              loading...
+            </div>
+          </div>
+
+          <div class="arms">
+            <div class="arm left"></div>
+            <div class="arm right"></div>
+          </div>
+        </div>
+
+        <div class="legs">
+          <div class="leg"></div>
+          <div class="leg"></div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function updateClock() {
+      const now = new Date();
+
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+
+      document.getElementById('clock').innerHTML =
+        `${hours}:${minutes}:${seconds}`;
+    }
+
+    setInterval(updateClock, 1000);
+    updateClock();
+  </script>
+
+</body>
+</html>
